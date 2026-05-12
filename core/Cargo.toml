@@ -1,0 +1,18 @@
+[package]
+name = "orchestra-core"
+version = "0.1.0"
+edition = "2021"
+description = "Orchestra Framework core library"
+
+[dependencies]
+actix-web = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+askama = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Orchestra App{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 text-gray-900">
+    <nav class="bg-white shadow-sm border-b px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <a href="/" class="text-xl font-bold text-indigo-600">🎼 Orchestra</a>
+            <div class="flex gap-4 text-sm">
+                {% block nav %}{% endblock %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="text-center text-sm text-gray-400 py-8">
+        Built with 🎼 Orchestra Framework
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,17 @@
+[package]
+name = "orchestra"
+version = "0.1.0"
+edition = "2021"
+description = "Orchestra Framework CLI - Artisan-like tooling for Rust web development"
+authors = ["Orchestra Contributors"]
+
+[[bin]]
+name = "orchestra"
+path = "src/main.rs"
+
+[dependencies]
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }

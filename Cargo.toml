@@ -1,0 +1,19 @@
+[workspace]
+members = ["cli", "core", "template"]
+resolver = "2"
+
+[workspace.dependencies]
+actix-web = "4"
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "sqlite", "postgres", "mysql", "macros"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+askama = "0.12"
+dotenv = "0.15"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+thiserror = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
