@@ -2,12 +2,12 @@ RustForge AI Framework - Development Roadmap 🚀
 ## Core Architecture Decisions
 
 ### Base Stack
-- [ ] Web Framework: Actix-web (primary), Axum (alternative)
-- [ ] Default ORM: SQLx (raw SQL + type safety)
+- [x] Web Framework: Actix-web (primary), Axum (alternative)
+- [x] Default ORM: SQLx (raw SQL + type safety)
 - [ ] Optional ORM: Diesel (if user prefers full ORM)
-- [ ] Template Engine: Askama (compile-time templates)
+- [x] Template Engine: Askama (compile-time templates)
 - [ ] HTMX Integration: Custom HTMX response helpers
-- [ ] Project Structure: Model-Repository-Controller pattern
+- [x] Project Structure: Model-Repository-Controller pattern
 
 ### Patterns to Implement
 - [ ] Repository Pattern (data access abstraction)

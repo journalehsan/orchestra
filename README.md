@@ -76,9 +76,9 @@ orchestra serve
 
 ### 💡 Next Steps
 
-* [ ] Draft README.md
-* [ ] Build CLI parser for `orchestra`
-* [ ] Scaffold starter repo with default structure
-* [ ] Create templates for model/view/controller generation
+* [x] Draft README.md
+* [x] Build CLI parser for `orchestra`
+* [x] Scaffold starter repo with default structure
+* [x] Create templates for model/view/controller generation
 * [ ] Design admin panel layout with Tailwind
 * [ ] Write migration engine (Rust or SQL-based)
