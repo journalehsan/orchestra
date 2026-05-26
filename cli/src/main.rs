@@ -114,8 +114,7 @@ fn cmd_new(project_name: &str, target_path: Option<&Path>) -> Result<()> {
         "src/routes",
         "src/config",
         "migrations",
-        "views/layouts",
-        "views/partials",
+        "templates/layouts",
         "public/css",
         "public/js",
         "tests",
@@ -193,6 +192,7 @@ mod models;
 mod repositories;
 mod routes;
 mod services;
+mod views;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -265,7 +265,7 @@ async fn main() -> anyhow::Result<()> {
 
     write_file(
         &project_dir.join("src/controllers/mod.rs"),
-        "// Controllers handle HTTP requests and responses.\n// They use services and repositories to fulfill requests.\n\npub mod example;\n",
+        "// Controllers handle HTTP requests and responses.\n// They use services and repositories to fulfill requests.\n\npub mod home;\npub mod example;\n",
     )?;
     write_file(
         &project_dir.join("src/controllers/example.rs"),
@@ -292,7 +292,29 @@ async fn main() -> anyhow::Result<()> {
         &generate_config_content(),
     )?;
 
-    // Write base Askama template
+    // Write views module
+    let views_mod = r#"use askama::Template;
+
+#[derive(Template)]
+#[template(path = "welcome.html")]
+pub struct WelcomeTemplate;
+"#;
+    write_file(&project_dir.join("src/views/mod.rs"), views_mod)?;
+
+    // Write home controller
+    let home_controller = r#"use actix_web::HttpResponse;
+use askama::Template;
+use crate::views::WelcomeTemplate;
+
+pub async fn welcome() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("text/html")
+        .body(WelcomeTemplate.render().unwrap())
+}
+"#;
+    write_file(&project_dir.join("src/controllers/home.rs"), home_controller)?;
+
+    // Write Askama templates
     let base_html = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -325,7 +347,21 @@ async fn main() -> anyhow::Result<()> {
 </body>
 </html>
 "#;
-    write_file(&project_dir.join("views/layouts/base.html"), base_html)?;
+    write_file(&project_dir.join("templates/layouts/base.html"), base_html)?;
+
+    let welcome_html = r#"{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="text-center py-16">
+    <h1 class="text-5xl font-bold text-indigo-600 mb-4">🎼 Orchestra</h1>
+    <p class="text-xl text-gray-600 mb-8">Your Rust web framework is ready.</p>
+    <div class="flex justify-center gap-4">
+        <a href="/health" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Health Check</a>
+    </div>
+</div>
+{% endblock %}
+"#;
+    write_file(&project_dir.join("templates/welcome.html"), welcome_html)?;
 
     // Write initial migration — creates the examples table
     let initial_migration = r#"-- Orchestra initial migration
@@ -605,9 +641,12 @@ pub async fn destroy(
 fn generate_routes_content() -> String {
     r#"use actix_web::web;
 
-use crate::controllers::example;
+use crate::controllers::{example, home};
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
+    // Root route — welcome page
+    cfg.route("/", web::get().to(home::welcome));
+
     cfg.service(
         web::scope("/api")
             .route("/examples", web::get().to(example::index))
