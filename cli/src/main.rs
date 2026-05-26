@@ -1,14 +1,14 @@
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::fs;
 use std::path::{Path, PathBuf};
-use anyhow::{Context, Result};
 
 #[derive(Parser)]
 #[command(
     name = "orchestra",
     version = "0.1.0",
     about = "Orchestra Framework CLI - Joyful Rust web development",
-    long_about = "Orchestra is an opinionated, modular, RAM-efficient framework\nfor building fullstack Rust applications.\n\nLike Laravel Artisan, but for Rust.",
+    long_about = "Orchestra is an opinionated, modular, RAM-efficient framework\nfor building fullstack Rust applications.\n\nLike Laravel Artisan, but for Rust."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -126,10 +126,7 @@ fn cmd_new(project_name: &str, target_path: Option<&Path>) -> Result<()> {
     println!("🎼 Creating Orchestra project: {}", project_name);
 
     if project_dir.exists() {
-        anyhow::bail!(
-            "Directory '{}' already exists.",
-            project_dir.display()
-        );
+        anyhow::bail!("Directory '{}' already exists.", project_dir.display());
     }
 
     // Create project directory structure
@@ -340,7 +337,10 @@ pub async fn welcome() -> HttpResponse {
         .body(WelcomeTemplate.render().unwrap())
 }
 "#;
-    write_file(&project_dir.join("src/controllers/home.rs"), home_controller)?;
+    write_file(
+        &project_dir.join("src/controllers/home.rs"),
+        home_controller,
+    )?;
 
     // Write Askama templates
     let base_html = r#"<!DOCTYPE html>
@@ -533,7 +533,7 @@ fn cmd_make_auth(
         ensure_src_dir(dir)?;
     }
     if !json_only {
-        ensure_src_dir("views/auth")?;
+        ensure_src_dir("templates/auth")?;
     }
 
     // ── Migration: users table ───────────────────────────────────────────────
@@ -557,7 +557,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 "#
     );
-    write_file(&PathBuf::from(format!("migrations/{}_create_users_table.sql", ts)), &users_migration)?;
+    write_file(
+        &PathBuf::from(format!("migrations/{}_create_users_table.sql", ts)),
+        &users_migration,
+    )?;
     println!("  ✓ migrations/{}_create_users_table.sql", ts);
 
     // ── Migration: roles table (if --with-role) ──────────────────────────────
@@ -690,12 +693,12 @@ pub fn extract_user(req: &HttpRequest) -> Result<String, HttpResponse> {
     println!("  ✓ src/middleware/auth.rs");
 
     // ── Controller: auth.rs ──────────────────────────────────────────────────
-    let auth_controller = generate_auth_controller(login_via, with_role, forgot);
+    let auth_controller = generate_auth_controller(login_via, with_role, forgot, json_only);
     write_file(&PathBuf::from("src/controllers/auth.rs"), &auth_controller)?;
     println!("  ✓ src/controllers/auth.rs");
 
     // ── Routes: auth_routes.rs ───────────────────────────────────────────────
-    let auth_routes = generate_auth_routes(forgot);
+    let auth_routes = generate_auth_routes(forgot, json_only);
     write_file(&PathBuf::from("src/routes/auth_routes.rs"), &auth_routes)?;
     println!("  ✓ src/routes/auth_routes.rs");
 
@@ -724,8 +727,8 @@ pub fn extract_user(req: &HttpRequest) -> Result<String, HttpResponse> {
 </div>
 {% endblock %}
 "#;
-        write_file(&PathBuf::from("views/auth/login.html"), login_view)?;
-        println!("  ✓ views/auth/login.html");
+        write_file(&PathBuf::from("templates/auth/login.html"), login_view)?;
+        println!("  ✓ templates/auth/login.html");
 
         let register_view = r#"{% extends "layouts/base.html" %}
 
@@ -752,8 +755,11 @@ pub fn extract_user(req: &HttpRequest) -> Result<String, HttpResponse> {
 </div>
 {% endblock %}
 "#;
-        write_file(&PathBuf::from("views/auth/register.html"), register_view)?;
-        println!("  ✓ views/auth/register.html");
+        write_file(
+            &PathBuf::from("templates/auth/register.html"),
+            register_view,
+        )?;
+        println!("  ✓ templates/auth/register.html");
 
         if forgot {
             let forgot_view = r#"{% extends "layouts/base.html" %}
@@ -774,9 +780,12 @@ pub fn extract_user(req: &HttpRequest) -> Result<String, HttpResponse> {
 </div>
 {% endblock %}
 "#;
-            write_file(&PathBuf::from("views/auth/forgot.html"), forgot_view)?;
-            println!("  ✓ views/auth/forgot.html");
+            write_file(&PathBuf::from("templates/auth/forgot.html"), forgot_view)?;
+            println!("  ✓ templates/auth/forgot.html");
         }
+
+        update_auth_view_module(forgot)?;
+        println!("  ✓ src/views/mod.rs (registered auth templates)");
     }
 
     // ── Update Cargo.toml: add bcrypt & jsonwebtoken ────────────────────────
@@ -788,8 +797,10 @@ pub fn extract_user(req: &HttpRequest) -> Result<String, HttpResponse> {
         for (dep, ver) in &[("bcrypt", "0.16"), ("jsonwebtoken", "9")] {
             if !cargo_content.contains(&format!("{} = ", dep)) {
                 if let Some(pos) = cargo_content.find("[dependencies]") {
-                    let after_line =
-                        cargo_content[pos..].find('\n').map(|p| pos + p + 1).unwrap_or(cargo_content.len());
+                    let after_line = cargo_content[pos..]
+                        .find('\n')
+                        .map(|p| pos + p + 1)
+                        .unwrap_or(cargo_content.len());
                     cargo_content.insert_str(after_line, &format!("{} = \"{}\"\n", dep, ver));
                     changed = true;
                 }
@@ -831,10 +842,8 @@ pub fn extract_user(req: &HttpRequest) -> Result<String, HttpResponse> {
     if routes_path.exists() {
         let routes_content = fs::read_to_string(routes_path)?;
         let marker = "pub fn configure(cfg: &mut web::ServiceConfig) {";
-        if routes_content.contains(marker)
-            && !routes_content.contains("auth_routes::configure")
-        {
-            let insert = "    // Auth routes\n    auth_routes::configure(cfg);\n\n";
+        if routes_content.contains(marker) && !routes_content.contains("auth_routes::configure") {
+            let insert = "\n    // Auth routes\n    auth_routes::configure(cfg);\n";
             if let Some(pos) = routes_content.find(marker) {
                 let body_start = routes_content[pos..]
                     .find('{')
@@ -874,7 +883,9 @@ pub fn extract_user(req: &HttpRequest) -> Result<String, HttpResponse> {
     println!("    2. Test auth flow:");
     println!("       curl -X POST http://localhost:8080/api/auth/register \\");
     println!("         -H 'Content-Type: application/json' \\");
-    println!("         -d '{{\"name\":\"Test\",\"email\":\"test@test.com\",\"password\":\"secret\"}}'");
+    println!(
+        "         -d '{{\"name\":\"Test\",\"email\":\"test@test.com\",\"password\":\"secret\"}}'"
+    );
     if with_role {
         let rls = if roles_list.is_empty() {
             "admin,user"
@@ -898,7 +909,10 @@ fn parse_roles(roles: Option<&str>) -> Vec<&str> {
                     .filter(|r| !r.is_empty())
                     .collect()
             } else {
-                s.split(',').map(|r| r.trim()).filter(|r| !r.is_empty()).collect()
+                s.split(',')
+                    .map(|r| r.trim())
+                    .filter(|r| !r.is_empty())
+                    .collect()
             }
         }
         _ => vec![],
@@ -961,9 +975,15 @@ pub struct UserResponse {
     .to_string()
 }
 
-fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> String {
+fn generate_auth_controller(
+    login_via: &str,
+    with_role: bool,
+    forgot: bool,
+    json_only: bool,
+) -> String {
     let register_check = match login_via {
-        "phone" => r#"        // Check if phone already registered
+        "phone" => {
+            r#"        // Check if phone already registered
         let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE phone = ?")
             .bind(&body.phone)
             .fetch_one(pool.get_ref())
@@ -972,8 +992,10 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
         if existing > 0 {
             return HttpResponse::Conflict()
                 .json(serde_json::json!({"error": "Phone already registered"}));
-        }"#,
-        "both" => r#"        // Check if email or phone already registered
+        }"#
+        }
+        "both" => {
+            r#"        // Check if email or phone already registered
         let existing = sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM users WHERE email = ? OR phone = ?",
         )
@@ -985,8 +1007,10 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
         if existing > 0 {
             return HttpResponse::Conflict()
                 .json(serde_json::json!({"error": "Email or phone already registered"}));
-        }"#,
-        _ => r#"        // Check if email already registered
+        }"#
+        }
+        _ => {
+            r#"        // Check if email already registered
         let existing = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE email = ?")
             .bind(&body.email)
             .fetch_one(pool.get_ref())
@@ -995,11 +1019,13 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
         if existing > 0 {
             return HttpResponse::Conflict()
                 .json(serde_json::json!({"error": "Email already registered"}));
-        }"#,
+        }"#
+        }
     };
 
     let register_impl = match login_via {
-        "phone" => r#"        let user_id = uuid::Uuid::new_v4().to_string();
+        "phone" => {
+            r#"        let user_id = uuid::Uuid::new_v4().to_string();
         let password_hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST).unwrap();
 
         sqlx::query("INSERT INTO users (id, phone, password_hash, name) VALUES (?1, ?2, ?3, ?4)")
@@ -1022,8 +1048,10 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
                 "email": null,
                 "phone": body.phone,
             }
-        }))"#,
-        "both" => r#"        let user_id = uuid::Uuid::new_v4().to_string();
+        }))"#
+        }
+        "both" => {
+            r#"        let user_id = uuid::Uuid::new_v4().to_string();
         let password_hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST).unwrap();
 
         sqlx::query("INSERT INTO users (id, email, phone, password_hash, name) VALUES (?1, ?2, ?3, ?4, ?5)")
@@ -1047,8 +1075,10 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
                 "email": body.email,
                 "phone": body.phone,
             }
-        }))"#,
-        _ => r#"        let user_id = uuid::Uuid::new_v4().to_string();
+        }))"#
+        }
+        _ => {
+            r#"        let user_id = uuid::Uuid::new_v4().to_string();
         let password_hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST).unwrap();
 
         sqlx::query("INSERT INTO users (id, email, phone, password_hash, name) VALUES (?1, ?2, ?3, ?4, ?5)")
@@ -1072,11 +1102,13 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
                 "email": body.email,
                 "phone": body.phone,
             }
-        }))"#,
+        }))"#
+        }
     };
 
     let login_impl = match login_via {
-        "phone" => r#"        let user = sqlx::query_as::<_, crate::models::user::User>(
+        "phone" => {
+            r#"        let user = sqlx::query_as::<_, crate::models::user::User>(
             "SELECT * FROM users WHERE phone = ?"
         )
         .bind(&body.phone)
@@ -1107,8 +1139,10 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
                 "email": user.email,
                 "phone": user.phone,
             }
-        }))"#,
-        "both" => r#"        let user = sqlx::query_as::<_, crate::models::user::User>(
+        }))"#
+        }
+        "both" => {
+            r#"        let user = sqlx::query_as::<_, crate::models::user::User>(
             "SELECT * FROM users WHERE email = ? OR phone = ?"
         )
         .bind(&body.email)
@@ -1140,8 +1174,10 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
                 "email": user.email,
                 "phone": user.phone,
             }
-        }))"#,
-        _ => r#"        let user = sqlx::query_as::<_, crate::models::user::User>(
+        }))"#
+        }
+        _ => {
+            r#"        let user = sqlx::query_as::<_, crate::models::user::User>(
             "SELECT * FROM users WHERE email = ?"
         )
         .bind(&body.email)
@@ -1172,7 +1208,8 @@ fn generate_auth_controller(login_via: &str, with_role: bool, forgot: bool) -> S
                 "email": user.email,
                 "phone": user.phone,
             }
-        }))"#,
+        }))"#
+        }
     };
 
     let forgot_impl = if forgot {
@@ -1306,9 +1343,59 @@ pub async fn roles(
         String::new()
     };
 
+    let template_import = if json_only {
+        ""
+    } else {
+        "use askama::Template;\n"
+    };
+
+    let page_handlers = if json_only {
+        String::new()
+    } else {
+        let forgot_page = if forgot {
+            r#"
+pub async fn forgot_page() -> HttpResponse {
+    match crate::views::ForgotPasswordTemplate.render() {
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(err) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to render forgot password page: {err}")
+        })),
+    }
+}
+"#
+        } else {
+            ""
+        };
+
+        format!(
+            r#"
+pub async fn login_page() -> HttpResponse {{
+    match crate::views::LoginTemplate.render() {{
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(err) => HttpResponse::InternalServerError().json(serde_json::json!({{
+            "error": format!("Failed to render login page: {{err}}")
+        }})),
+    }}
+}}
+
+pub async fn register_page() -> HttpResponse {{
+    match crate::views::RegisterTemplate.render() {{
+        Ok(html) => HttpResponse::Ok().content_type("text/html").body(html),
+        Err(err) => HttpResponse::InternalServerError().json(serde_json::json!({{
+            "error": format!("Failed to render register page: {{err}}")
+        }})),
+    }}
+}}
+{forgot_page}
+"#
+        )
+    };
+
     format!(
         r#"use actix_web::{{web, HttpRequest, HttpResponse}};
-use sqlx::SqlitePool;
+{template_import}use sqlx::SqlitePool;
+
+{page_handlers}
 
 pub async fn register(
     pool: web::Data<SqlitePool>,
@@ -1361,17 +1448,35 @@ pub async fn me(
     )
 }
 
-fn generate_auth_routes(forgot: bool) -> String {
+fn generate_auth_routes(forgot: bool, json_only: bool) -> String {
     let forgot_routes = if forgot {
         r#"            .route("/forgot", web::post().to(crate::controllers::auth::forgot))
             .route("/reset", web::post().to(crate::controllers::auth::reset))"#
     } else {
         ""
     };
+    let page_routes = if json_only {
+        String::new()
+    } else {
+        let forgot_page = if forgot {
+            r#"    cfg.route("/forgot", web::get().to(crate::controllers::auth::forgot_page));
+"#
+        } else {
+            ""
+        };
+
+        format!(
+            r#"
+    cfg.route("/login", web::get().to(crate::controllers::auth::login_page));
+    cfg.route("/register", web::get().to(crate::controllers::auth::register_page));
+{forgot_page}"#
+        )
+    };
     format!(
         r#"use actix_web::web;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {{
+{page_routes}
     cfg.service(
         web::scope("/api/auth")
             .route("/register", web::post().to(crate::controllers::auth::register))
@@ -1619,8 +1724,63 @@ fn write_file(path: &Path, content: &str) -> Result<()> {
 }
 
 fn ensure_src_dir(dir: &str) -> Result<()> {
-    fs::create_dir_all(dir)
-        .with_context(|| format!("Failed to create directory: {}", dir))
+    fs::create_dir_all(dir).with_context(|| format!("Failed to create directory: {}", dir))
+}
+
+fn update_auth_view_module(forgot: bool) -> Result<()> {
+    let path = Path::new("src/views/mod.rs");
+    let mut content = if path.exists() {
+        fs::read_to_string(path).with_context(|| format!("Failed to read {}", path.display()))?
+    } else {
+        "use askama::Template;\n".to_string()
+    };
+
+    if !content.contains("use askama::Template;") {
+        content.insert_str(0, "use askama::Template;\n\n");
+    }
+
+    let auth_templates = [
+        (
+            "LoginTemplate",
+            r#"
+#[derive(Template)]
+#[template(path = "auth/login.html")]
+pub struct LoginTemplate;
+"#,
+        ),
+        (
+            "RegisterTemplate",
+            r#"
+#[derive(Template)]
+#[template(path = "auth/register.html")]
+pub struct RegisterTemplate;
+"#,
+        ),
+    ];
+
+    for (name, declaration) in auth_templates {
+        if !content.contains(name) {
+            if !content.ends_with('\n') {
+                content.push('\n');
+            }
+            content.push_str(declaration);
+        }
+    }
+
+    if forgot && !content.contains("ForgotPasswordTemplate") {
+        if !content.ends_with('\n') {
+            content.push('\n');
+        }
+        content.push_str(
+            r#"
+#[derive(Template)]
+#[template(path = "auth/forgot.html")]
+pub struct ForgotPasswordTemplate;
+"#,
+        );
+    }
+
+    write_file(path, &content)
 }
 
 fn append_mod_declaration(mod_file: &str, module_name: &str) -> Result<()> {
@@ -1628,13 +1788,12 @@ fn append_mod_declaration(mod_file: &str, module_name: &str) -> Result<()> {
     let declaration = format!("pub mod {};\n", module_name);
 
     if path.exists() {
-        let content = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read {}", mod_file))?;
+        let content =
+            fs::read_to_string(path).with_context(|| format!("Failed to read {}", mod_file))?;
         if !content.contains(&format!("pub mod {};", module_name)) {
             let mut updated = content;
             updated.push_str(&declaration);
-            fs::write(path, updated)
-                .with_context(|| format!("Failed to update {}", mod_file))?;
+            fs::write(path, updated).with_context(|| format!("Failed to update {}", mod_file))?;
         }
     } else {
         write_file(path, &declaration)?;
